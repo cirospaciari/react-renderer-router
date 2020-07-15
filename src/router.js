@@ -15,6 +15,7 @@ class Router {
         this.assets = options.assets || {};
         this.assets.path = this.assets.path || '/static/media';
         this.root_element = options.root_element || '#root';
+        this.react_router_instance = options.react_router_instance;
 
         require(this.babel_config);
         require(this.routes_file)['default']({
@@ -106,6 +107,9 @@ class Router {
                 max_memory: this.max_memory,
                 remove_images: this.remove_images,
                 route_index,
+                assets: this.assets,
+                root_element: this.root_element,
+                react_router_instance: this.react_router_instance,
                 ...options,
                 request
             });
@@ -128,7 +132,8 @@ class Router {
                 request: render_request,
                 route_index,
                 assets: this.assets,
-                root_element: this.root_element
+                root_element: this.root_element,
+                react_router_instance: this.react_router_instance
             };
             if (typeof interceptor === 'function') {
                 rendered = await interceptor(render_request, {

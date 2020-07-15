@@ -1,7 +1,6 @@
 import React, { Fragment } from 'react';
 import App from '@react-renderer/app';
 
-
 const ReactDOMServer = require('react-dom/server');
 const cheerio = require('cheerio');
 const fs = require('fs');
@@ -14,7 +13,7 @@ const readAsync = (filename) => {
     });
 }
 module.exports = async function render(scope, params, response) {
-    let { id, html_file, routes_file, max_memory, request, route_index, remove_images, root_element } = params;
+    let { id, html_file, routes_file, max_memory, request, route_index, remove_images, root_element, react_router_instance } = params;
     try {
 
         //load routes if need
@@ -127,7 +126,11 @@ module.exports = async function render(scope, params, response) {
         }
         const $ = cheerio.load(scope.html);
 
-        const body = ReactDOMServer.renderToString(<App entry={scope.entry_point} entry_state={entry_state} context={context} request={request} model={model} routes={scope.routes} />);
+        
+        if(react_router_instance){
+            react_router_instance = require(react_router_instance);
+        }
+        const body = ReactDOMServer.renderToString(<App react_router_instance={react_router_instance} entry={scope.entry_point} entry_state={entry_state} context={context} request={request} model={model} routes={scope.routes} />);
 
         const Helmet = (context.route || {}).helmet || ((context.route || {}).component || {}).helmet || (() => <Fragment />);
         const header_html = ReactDOMServer.renderToString(<Helmet model={model} />);

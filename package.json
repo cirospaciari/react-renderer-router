@@ -1,11 +1,12 @@
 {
   "name": "@react-renderer/router",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "description": "",
   "main": "lib/index.js",
   "scripts": {
     "build": "npx babel src --out-dir lib",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "local": "npm link @react-renderer/app"
   },
   "repository": {
     "type": "git",
