@@ -38,7 +38,7 @@ module.exports = async function render(scope, params, response) {
 
 
         const route = scope.routes[route_index];
-        if(route.ignoreSSR){
+        if (route.ignoreSSR) {
             return response(id, { html: scope.html, context: { status: 200 } }, max_memory);
         }
 
@@ -109,11 +109,15 @@ module.exports = async function render(scope, params, response) {
 
         const entry_state = { is_fetching: false, model: null };
 
-        if (scope.entry_point && typeof scope.entry_point.fetch === 'function') {
-            request.entry = scope.entry_point.fetch({ ...request, params: undefined, route: undefined }, reply);
+        if (scope.entry_point) {
+            const entry_fetch = scope.entry_point.fetch || (scope.entry_point.component || {}).fetch;
+            if (typeof entry_fetch === 'function') {
+                request.entry = entry_fetch({ ...request, params: undefined, route: undefined }, reply);
+            }
         }
 
-        const [entry_model, model] = await Promise.all([request.entry || null, typeof route.fetch === 'function' ? await route.fetch(request, reply) : null]);
+        const route_fetch = route.fetch || (route.component || {}).fetch;
+        const [ entry_model, model ] = await Promise.all([request.entry || null, typeof route_fetch === 'function' ? await route_fetch(request, reply) : null]);
         entry_state.model = entry_model;
 
 
@@ -125,7 +129,7 @@ module.exports = async function render(scope, params, response) {
 
         const body = ReactDOMServer.renderToString(<App entry={scope.entry_point} entry_state={entry_state} context={context} request={request} model={model} routes={scope.routes} />);
 
-        const Helmet = (context.route || {}).helmet || (() => <Fragment />);
+        const Helmet = (context.route || {}).helmet || ((context.route || {}).component || {}).helmet || (() => <Fragment />);
         const header_html = ReactDOMServer.renderToString(<Helmet model={model} />);
 
         const headElement = $('head');
@@ -140,7 +144,7 @@ module.exports = async function render(scope, params, response) {
         });
 
         headElement.find('title').text(title);
-        if(route.preload !== false){
+        if (route.preload !== false) {
             const script = $(`<script>`);
             script.html(`(function(global){ global.__PRELOADED_STATE__ = ${JSON.stringify({
                 is_fetching: false,

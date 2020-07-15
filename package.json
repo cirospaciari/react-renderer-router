@@ -1,6 +1,6 @@
 {
   "name": "@react-renderer/router",
-  "version": "0.0.5",
+  "version": "0.0.9",
   "description": "",
   "main": "lib/index.js",
   "scripts": {
@@ -35,18 +35,13 @@
     "@babel/preset-env": "^7.10.4",
     "@babel/preset-react": "^7.10.4",
     "@babel/register": "^7.10.5",
-    "@react-renderer/app": "0.0.7",
+    "@react-renderer/app": "latest",
     "cheerio": "^1.0.0-rc.3",
     "ignore-styles": "^5.0.1",
     "react": "^16.13.1",
-    "react-dom": "^16.13.1",
-    "react-router-dom": "^5.2.0"
+    "react-dom": "^16.13.1"
   },
   "devDependencies": {
-    "@babel/cli": "^7.10.5",
-    "@babel/core": "^7.10.5",
-    "@babel/preset-env": "^7.10.4",
-    "@babel/preset-react": "^7.10.4",
-    "@babel/register": "^7.10.5"
+    "@babel/cli": "^7.10.5"
   }
 }

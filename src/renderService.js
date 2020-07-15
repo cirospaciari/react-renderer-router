@@ -18,26 +18,26 @@ class RenderService {
     rnds[8] = (rnds[8] & 0x3f) | 0x80;
     const byteToHex = new Array(16);
     return (
-        byteToHex[rnds[0]] +
-        byteToHex[rnds[1]] +
-        byteToHex[rnds[2]] +
-        byteToHex[rnds[3]] +
-        '-' +
-        byteToHex[rnds[4]] +
-        byteToHex[rnds[5]] +
-        '-' +
-        byteToHex[rnds[6]] +
-        byteToHex[rnds[7]] +
-        '-' +
-        byteToHex[rnds[8]] +
-        byteToHex[rnds[9]] +
-        '-' +
-        byteToHex[rnds[10]] +
-        byteToHex[rnds[11]] +
-        byteToHex[rnds[12]] +
-        byteToHex[rnds[13]] +
-        byteToHex[rnds[14]] +
-        byteToHex[rnds[15]]
+      byteToHex[rnds[0]] +
+      byteToHex[rnds[1]] +
+      byteToHex[rnds[2]] +
+      byteToHex[rnds[3]] +
+      '-' +
+      byteToHex[rnds[4]] +
+      byteToHex[rnds[5]] +
+      '-' +
+      byteToHex[rnds[6]] +
+      byteToHex[rnds[7]] +
+      '-' +
+      byteToHex[rnds[8]] +
+      byteToHex[rnds[9]] +
+      '-' +
+      byteToHex[rnds[10]] +
+      byteToHex[rnds[11]] +
+      byteToHex[rnds[12]] +
+      byteToHex[rnds[13]] +
+      byteToHex[rnds[14]] +
+      byteToHex[rnds[15]]
     ).toLowerCase();
   }
 
@@ -50,19 +50,40 @@ class RenderService {
           console.error('Failed to start SSR renderer process');
           resolve({ html: '', context: { error: 'Failed to start SSR renderer process', status: 500 } });
         }
+
+        let restarted = false;
         renderer.once('message', res => {
           this.resolvers.delete(id);
           resolve(res.response);
 
-          if (res.kill) {
+          if (res.kill && !restarted) {
+            restarted = true;
             this.restartRenderer();
           }
         });
 
+        renderer.once('error', error => {
+          if (error) {
+            resolve({ html: '', context: { error, status: 500 } });
+            if(!restarted){
+              restarted = true;
+              this.restartRenderer();
+            }
+          }
+        })
+
         if (!this.resolvers.has(id)) {
           renderer.setMaxListeners(Infinity);
           this.resolvers.set(id, resolve);
-          renderer.send({ id, ...params });
+          renderer.send({ id, ...params }, (error)=> {
+            if (error) {
+              resolve({ html: '', context: { error, status: 500 } });
+              if(!restarted){
+                restarted = true;
+                this.restartRenderer();
+              }
+            }
+          });
         }
       } catch (error) {
         this.resolvers.delete(id);
@@ -97,11 +118,11 @@ class RenderService {
   }
 
   restartRenderer() {
-    if(this.active < 0){
+    if (this.active < 0) {
       this.next();
       return this.renderers[this.active];
     }
-    
+
     const renderer = this.renderers[this.active];
     this.next();
     try {
