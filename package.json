@@ -1,0 +1,52 @@
+{
+  "name": "@react-renderer/router",
+  "version": "0.0.5",
+  "description": "",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "npx babel src --out-dir lib",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cirospaciari/react-renderer-router.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/cirospaciari/react-renderer-router/issues"
+  },
+  "homepage": "https://github.com/cirospaciari/react-renderer-router#readme",
+  "babel": {
+    "presets": [
+      [
+        "@babel/preset-env",
+        {
+          "targets": {
+            "node": "current"
+          }
+        }
+      ],
+      "@babel/preset-react"
+    ]
+  },
+  "dependencies": {
+    "@babel/core": "^7.10.5",
+    "@babel/preset-env": "^7.10.4",
+    "@babel/preset-react": "^7.10.4",
+    "@babel/register": "^7.10.5",
+    "@react-renderer/app": "0.0.7",
+    "cheerio": "^1.0.0-rc.3",
+    "ignore-styles": "^5.0.1",
+    "react": "^16.13.1",
+    "react-dom": "^16.13.1",
+    "react-router-dom": "^5.2.0"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.10.5",
+    "@babel/core": "^7.10.5",
+    "@babel/preset-env": "^7.10.4",
+    "@babel/preset-react": "^7.10.4",
+    "@babel/register": "^7.10.5"
+  }
+}
