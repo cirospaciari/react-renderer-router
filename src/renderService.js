@@ -1,6 +1,11 @@
 const { fork } = require('child_process');
 const path = require('path');
 const crypto = require('crypto');
+const byteToHex = [];
+
+for (let i = 0; i < 256; ++i) {
+  byteToHex.push((i + 0x100).toString(16).substr(1));
+}
 
 class RenderService {
   constructor(forks) {
@@ -16,7 +21,6 @@ class RenderService {
     // Per 4.4, set bits for version and `clock_seq_hi_and_reserved`
     rnds[6] = (rnds[6] & 0x0f) | 0x40;
     rnds[8] = (rnds[8] & 0x3f) | 0x80;
-    const byteToHex = new Array(16);
     return (
       byteToHex[rnds[0]] +
       byteToHex[rnds[1]] +
@@ -44,46 +48,48 @@ class RenderService {
   render(params) {
     return new Promise(resolve => {
       const id = this.uuidv4();
+      let restartedProcess = false;
+      let returned = false;
+      const complete = (result, restart) => {
+        if (!returned) {
+          returned = true;
+          this.resolvers.delete(id);
+          resolve(result);
+        }
+        if (!restartedProcess && restart) {
+          restartedProcess = true;
+          this.restartRenderer();
+        }
+      };
       try {
         let renderer = this.getRenderer();
         if (!renderer || renderer.exitCode !== null) {
           console.error('Failed to start SSR renderer process');
-          resolve({ html: '', context: { error: 'Failed to start SSR renderer process', status: 500 } });
+          complete({ html: '', context: { error: 'Failed to start SSR renderer process', status: 500 } }, true);
         }
 
-        let restarted = false;
         renderer.once('message', res => {
-          this.resolvers.delete(id);
-          resolve(res.response);
-
-          if (res.kill && !restarted) {
-            restarted = true;
-            this.restartRenderer();
-          }
+          complete(res.response, res.kill);
         });
 
         renderer.once('error', error => {
-          if (error) {
-            resolve({ html: '', context: { error, status: 500 } });
-            if(!restarted){
-              restarted = true;
-              this.restartRenderer();
-            }
-          }
-        })
+          complete({ html: '', context: { error, status: 500 } }, true);
+        });
+
+        renderer.once('exit', code =>{
+          complete({ html: '', context: { error: 'SSR fork renderer process exited with code ' + code, status: 500 } }, true);
+        });
 
         if (!this.resolvers.has(id)) {
           renderer.setMaxListeners(Infinity);
           this.resolvers.set(id, resolve);
-          renderer.send({ id, ...params }, (error)=> {
+          renderer.send({ id, ...params },null, {}, (error)=> {
             if (error) {
-              resolve({ html: '', context: { error, status: 500 } });
-              if(!restarted){
-                restarted = true;
-                this.restartRenderer();
-              }
+              complete({ html: '', context: { error, status: 500 } }, true);
             }
           });
+        }else {
+          complete({ html: '', context: { error: 'SSR Failed to send request', status: 500 } }, true);
         }
       } catch (error) {
         this.resolvers.delete(id);
@@ -124,7 +130,8 @@ class RenderService {
     }
 
     const renderer = this.renderers[this.active];
-    this.next();
+    this.renderers[this.active] = this.createRenderer();
+
     try {
       if (renderer && renderer.exitCode === null) {
         renderer.kill();
@@ -132,7 +139,8 @@ class RenderService {
     } catch (ex) {
       console.error('Failed to kill SSR renderer process', ex);
     }
-    this.renderers[this.active] = this.createRenderer();
+
+    this.next();
     return this.renderers[this.active];
   }
 

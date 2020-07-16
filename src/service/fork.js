@@ -40,7 +40,13 @@ process.on('message', async params => {
                 id,
                 response,
                 kill: heapUsed >= max_memory * 1024 * 1024
-            });
+            },
+            null,
+            {},
+            error => {
+              if (error !== null) console.error('SSR: Fail to send response', error);
+            }
+          );
         }
     });
 });
