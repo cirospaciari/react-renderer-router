@@ -46,7 +46,7 @@ class RenderService {
   }
 
   render(params) {
-    return new Promise(resolve => {
+    return new Promise(async (resolve) => {
       const id = this.uuidv4();
       let restartedProcess = false;
       let returned = false;
@@ -62,7 +62,7 @@ class RenderService {
         }
       };
       try {
-        let renderer = this.getRenderer();
+        let renderer = await this.getRenderer();
         if (!renderer || renderer.exitCode !== null) {
           console.error('Failed to start SSR renderer process');
           complete({ html: '', context: { error: 'Failed to start SSR renderer process', status: 500 } }, true);
@@ -76,19 +76,21 @@ class RenderService {
           complete({ html: '', context: { error, status: 500 } }, true);
         });
 
-        renderer.once('exit', code =>{
-          complete({ html: '', context: { error: 'SSR fork renderer process exited with code ' + code, status: 500 } }, true);
+        renderer.once('exit', code => {
+          if (!renderer.sendedKillSignal) {
+            complete({ html: '', context: { error: 'SSR fork renderer process exited with code ' + code, status: 500 } }, true);
+          }
         });
 
         if (!this.resolvers.has(id)) {
           renderer.setMaxListeners(Infinity);
           this.resolvers.set(id, resolve);
-          renderer.send({ id, ...params },null, {}, (error)=> {
+          renderer.send({ id, ...params }, null, {}, (error) => {
             if (error) {
               complete({ html: '', context: { error, status: 500 } }, true);
             }
           });
-        }else {
+        } else {
           complete({ html: '', context: { error: 'SSR Failed to send request', status: 500 } }, true);
         }
       } catch (error) {
@@ -100,23 +102,37 @@ class RenderService {
   }
 
   getRenderer() {
-    let count = 0;
+    
+    
     this.next();//get next to balance requests
+    const renderer = this.renderers[this.active];
+    if (!renderer || renderer.exitCode !== null) { //process exited so create new
+      this.renderers[this.active] = this.createRenderer();
+      return this.renderers[this.active];
+    }
+    const active = this.active;
 
-    do {
+    return new Promise((resolve) => {
 
-      const renderer = this.renderers[this.active];
-      if (renderer && renderer.exitCode === null) {
-        //renderer is available :D
-        return renderer;
+      if (!renderer.sendedKillSignal) {
+        return resolve(renderer);
       }
-      //restart and try again
-      this.restartRenderer();
-      count++;
-    } while (count < this.forks);
 
-    //no renderer available so... restart and try one more time!
-    return this.restartRenderer();
+      const waitClosesAndRestart = () => {
+        setImmediate(() => {
+          if (this.renderers[active].sendedKillSignal && renderer.exitCode === null) { //waiting to close
+            waitClosesAndRestart();
+          } else if (this.renderers[active].sendedKillSignal) { //received signal and closed
+            this.renderers[active] = this.createRenderer();
+            resolve(this.renderers[active]);
+          } else { //some one restart for me!
+            resolve(this.renderers[active]);
+          }
+        });
+      }
+
+      waitClosesAndRestart();
+    });
   }
 
   createRenderer() {
@@ -125,30 +141,42 @@ class RenderService {
 
   restartRenderer() {
     if (this.active < 0) {
-      this.next();
+      this.active = 0;
       return this.renderers[this.active];
     }
 
     const renderer = this.renderers[this.active];
-    this.renderers[this.active] = this.createRenderer();
-
+    this.next();
     try {
-      if (renderer && renderer.exitCode === null) {
-        renderer.kill();
+      if (renderer && renderer.exitCode === null && !renderer.sendedKillSignal) {
+        renderer.sendedKillSignal = true;
+        renderer.send({
+          kill: true
+        }, null, {}, (error) => {
+          if (error) {
+            console.error('Failed to send kill to fork process', error);
+            renderer.kill();//force kill
+          }
+        });
       }
     } catch (ex) {
       console.error('Failed to kill SSR renderer process', ex);
     }
-
-    this.next();
+    
     return this.renderers[this.active];
   }
 
   next() {
+    let next;
     if (this.active === this.forks - 1) {
-      this.active = 0;
+      next = 0;
     } else {
-      this.active++;
+      next = this.active + 1;
+    }
+    //only go to next if next its available
+
+    if (!this.renderers[next].sendedKillSignal) {
+      this.active = next;
     }
   }
 }
