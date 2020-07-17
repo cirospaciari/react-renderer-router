@@ -7,7 +7,7 @@ class Router {
     constructor(options) {
         this.routes_file = options.routes;
         this.html_file = options.html_file;
-        this.renderer = new RenderService(options.instances || 2);
+        this.renderer = new RenderService(options.instances || 2, options.use_fork ? 'fork' : 'thread');
         this.max_memory = options.max_memory || 250;
         this.routes = [];
         this.babel_config = options.babel_config || path.join(__dirname, './babelConfig.js');
@@ -173,7 +173,6 @@ class Router {
                     };
 
                     const rendered = await render(render_request, route_index);
-
                     //set cookies
                     if (rendered.context.cookies && reply.setCookie) {
                         for (let i in rendered.context.cookies) {

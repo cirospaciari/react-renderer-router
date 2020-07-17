@@ -4,19 +4,13 @@ import App from '@react-renderer/app';
 const ReactDOMServer = require('react-dom/server');
 const cheerio = require('cheerio');
 const fs = require('fs');
-const readAsync = (filename) => {
-    return new Promise((resolve, reject) => {
-        fs.readFile(filename, 'utf8', (err, data) => {
-            if (err) return reject(err);
-            resolve(data);
-        });
-    });
+function contextClean(context){
+    delete context.route;
+    delete context.entry;
+    return context;
 }
-
-
-module.exports = async function render(scope, params, response) {
-    let { id, html_file, routes_file, max_memory, request, route_index, remove_images, root_element, react_router_instance } = params;
-
+module.exports = async function render(scope, params) {
+    let { html_file, routes_file, request, route_index, remove_images, root_element, react_router_instance } = params;
     try {
 
         //load routes if need
@@ -34,14 +28,14 @@ module.exports = async function render(scope, params, response) {
         }
         //load html if need
         if (scope.html_file !== html_file) {
-            scope.html = await readAsync(html_file);
+            scope.html = fs.readFileSync(html_file, 'utf8');
             scope.html_file = html_file;
         }
 
 
         const route = scope.routes[route_index];
         if (route.ignoreSSR) {
-            return response(id, { html: scope.html, context: { status: 200 } }, max_memory);
+            return { html: scope.html, context: { status: 200 } };
         }
 
         const dom_operations = [];
@@ -125,7 +119,7 @@ module.exports = async function render(scope, params, response) {
 
         if (context.url) { //redirect
             context.status = 302;
-            return response(id, { html: '', context }, max_memory);
+            return { html: '', context: contextClean(context) };
         }
         const $ = cheerio.load(scope.html);
 
@@ -244,7 +238,7 @@ module.exports = async function render(scope, params, response) {
             context.status = 200;
         }
         $('[data-ssr="ignore"]').remove();
-        return response(id, { html: $.html(), context }, max_memory);
+        return { html: $.html(), context: contextClean(context) };
 
     } catch (error) {
         try {
@@ -294,10 +288,10 @@ module.exports = async function render(scope, params, response) {
             }
             $('[data-ssr="ignore"]').remove();
             context.status = 500;
-            return response(id, { html: $.html(), context }, max_memory);
+            return { html: $.html(), context: contextClean(context) };
 
         } catch (ex) { //try to show error 500 page if fail go to fallback
-            return response(id, { html: '', context: { error: error + "", status: 500 } }, max_memory);
+            return { html: '', context: { error: error + "", status: 500 } };
         }
     }
 }
