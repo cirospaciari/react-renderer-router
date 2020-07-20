@@ -4,10 +4,28 @@ import App from '@react-renderer/app';
 const ReactDOMServer = require('react-dom/server');
 const cheerio = require('cheerio');
 const fs = require('fs');
-function contextClean(context){
+function contextClean(context) {
     delete context.route;
     delete context.entry;
     return context;
+}
+
+
+function renderAsync(element) {
+    const body = [];
+    return new Promise((resolve, reject) => {
+        const bodyStream = ReactDOMServer.renderToNodeStream(element);
+        bodyStream.on('data', (chunk) => {
+            body.push(chunk.toString());
+        });
+        bodyStream.on('error', (error) => {
+            reject(error);
+        });
+        bodyStream.on('end', () => {
+            resolve(body.join(''));
+        });
+    });
+
 }
 module.exports = async function render(scope, params) {
     let { html_file, routes_file, request, route_index, remove_images, root_element, react_router_instance } = params;
@@ -127,10 +145,11 @@ module.exports = async function render(scope, params) {
         if (react_router_instance) {
             react_router_instance = require(react_router_instance);
         }
-        const body = ReactDOMServer.renderToString(<App react_router_instance={react_router_instance} entry={scope.entry_point} entry_state={entry_state} context={context} request={request} model={model} routes={scope.routes} />);
+        const Helmet = (route || {}).helmet || ((route || {}).component || {}).helmet || (() => <Fragment />);
 
-        const Helmet = (context.route || {}).helmet || ((context.route || {}).component || {}).helmet || (() => <Fragment />);
-        const header_html = ReactDOMServer.renderToString(<Helmet model={model} />);
+        const element = <App react_router_instance={react_router_instance} entry={scope.entry_point} entry_state={entry_state} context={context} request={request} model={model} routes={scope.routes} />;
+        const helmet = <Helmet model={model} />
+        const [body, header_html] = await Promise.all([renderAsync(element), renderAsync(helmet)]);
 
         const headElement = $('head');
         const container = $.load(`<head>${header_html}</head>`);
@@ -161,7 +180,7 @@ module.exports = async function render(scope, params) {
         $(root_element).html(body);
 
         if (remove_images) {
-            $('img').remove();//ignore images
+            $(remove_images || 'img,svg').remove();//ignore images
         }
 
         try {
@@ -250,10 +269,10 @@ module.exports = async function render(scope, params) {
             const model = { error: error + "" };
             const $ = cheerio.load(scope.html);
             request.query = new URLSearchParams(request.search);
-            const body = ReactDOMServer.renderToString(<App entry_state={entry_state} context={context} error500={true} request={request} model={model} routes={scope.routes} />);
+            const body = await renderAsync(<App entry_state={entry_state} context={context} error500={true} request={request} model={model} routes={scope.routes} />);
 
             const Helmet = (context.route || {}).helmet || (() => <Fragment />);
-            const header_html = ReactDOMServer.renderToString(<Helmet model={model} />);
+            const header_html = await renderAsync(<Helmet model={model} />);
 
             const headElement = $('head');
             const container = $.load(`<head>${header_html}</head>`);
@@ -283,9 +302,11 @@ module.exports = async function render(scope, params) {
             $(script).insertBefore($('script').first());
 
             $(root_element).html(body);
+
             if (remove_images) {
-                $('img').remove();//ignore images
+                $(remove_images || 'img,svg').remove();//ignore images
             }
+
             $('[data-ssr="ignore"]').remove();
             context.status = 500;
             return { html: $.html(), context: contextClean(context) };

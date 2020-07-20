@@ -1,6 +1,6 @@
 {
   "name": "@react-renderer/router",
-  "version": "0.0.17",
+  "version": "0.0.18",
   "description": "",
   "main": "lib/index.js",
   "scripts": {
@@ -41,7 +41,7 @@
     "ignore-styles": "^5.0.1",
     "react": "^16.13.1",
     "react-dom": "^16.13.1",
-    "simplified-concurrence": "latest"
+    "simplified-concurrence": "^1.0.7"
   },
   "devDependencies": {
     "@babel/cli": "^7.10.5"

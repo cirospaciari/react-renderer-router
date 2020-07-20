@@ -172,6 +172,7 @@ class Router {
                         cookies: request.cookies || {}
                     };
 
+                    
                     const rendered = await render(render_request, route_index);
                     //set cookies
                     if (rendered.context.cookies && reply.setCookie) {
@@ -239,6 +240,7 @@ class Router {
                         route: route.path || route.error,
                         cookies: request.cookies || {}
                     };
+
 
                     const rendered = await render(render_request, route_index);
 

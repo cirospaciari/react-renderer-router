@@ -9,21 +9,20 @@ module.exports = {
 
             register(undefined, function (module, filename) {
 
-                if (!params.remove_images) {
-                    const isImage = ['.svg', '.png', '.jpg', '.jpeg', '.webp', '.jfif', '.pjpeg', '.pjp', '.tif', '.tiff', '.ico', '.cur', '.gif', '.bmp', '.apng']
-                        .some((ext) => filename.endsWith(ext));
+                const isImage = ['.svg', '.png', '.jpg', '.jpeg', '.webp', '.jfif', '.pjpeg', '.pjp', '.tif', '.tiff', '.ico', '.cur', '.gif', '.bmp', '.apng']
+                    .some((ext) => filename.endsWith(ext));
 
-                    if (isImage) {
+                if (isImage) {
 
-                        const path = params.assets.path + filename.substr(module.path.length);
-                        if (params.assets.manifest) {
-                            module.exports = require(params.assets.manifest)['files'][path.substr(1)];
-                        } else {
-                            module.exports = path;
-                        }
-
+                    const path = params.assets.path + filename.substr(module.path.length);
+                    if (params.assets.manifest) {
+                        module.exports = require(params.assets.manifest)['files'][path.substr(1)];
+                    } else {
+                        module.exports = path;
                     }
+
                 }
+
             });
         }
         if (scope.babel_config !== params.babel_config) {
