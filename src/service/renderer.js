@@ -163,17 +163,40 @@ module.exports = async function render(scope, params) {
         });
 
         headElement.find('title').text(title);
-        if (route.preload !== false) {
+
+        const preload_action = route.preload || (route.component || {}).preload;
+        if (typeof preload_action === 'function') {
+            model = await preload_action(model);
+        }
+        let preload = preload_action !== false;
+        let preload_entry = false;
+
+        if (scope.entry_point) {
+            const entry_preload_action = scope.entry_point.preload || (scope.entry_point.component || {}).preload;
+            if(entry_preload_action !== false){
+                preload_entry = true;
+
+                if(!preload ){
+                    preload = true;
+                }
+            }
+
+            if (typeof entry_preload_action === 'function') {
+                entry_state.model = await entry_preload_action(entry_state.model);
+            }
+        }
+
+        if (preload) {
             const script = $(`<script>`);
             script.html(`(function(global){ global.__PRELOADED_STATE__ = ${JSON.stringify({
                 is_fetching: false,
-                model,
+                model: preload_action !== false ? model : null,
                 is_server: false,
-                request: {
+                request:  preload_action !== false ? {
                     url: request.url,
                     search: request.search
-                },
-                entry_state
+                } : null,
+                entry_state: preload_entry ? entry_state : null
             }).replace(/</g, '\\u003c')}})(window)`);
             $(script).insertBefore($('script').first());
         }
@@ -271,7 +294,7 @@ module.exports = async function render(scope, params) {
             request.query = new URLSearchParams(request.search);
             const body = await renderAsync(<App entry_state={entry_state} context={context} error500={true} request={request} model={model} routes={scope.routes} />);
 
-            const Helmet = (context.route || {}).helmet || (() => <Fragment />);
+            const Helmet = (context.route || {}).helmet || ((context.route || {}).component || {}).helmet || (() => <Fragment />);
             const header_html = await renderAsync(<Helmet model={model} />);
 
             const headElement = $('head');
