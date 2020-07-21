@@ -131,7 +131,7 @@ module.exports = async function render(scope, params) {
         }
 
         const route_fetch = route.fetch || (route.component || {}).fetch;
-        const [entry_model, model] = await Promise.all([request.entry || null, typeof route_fetch === 'function' ? await route_fetch(request, reply) : null]);
+        let [entry_model, model] = await Promise.all([request.entry || null, typeof route_fetch === 'function' ? await route_fetch(request, reply) : null]);
         entry_state.model = entry_model;
 
 
