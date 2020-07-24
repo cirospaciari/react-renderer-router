@@ -1,9 +1,9 @@
-import React, { Fragment } from 'react';
-import App from '@react-renderer/app';
 
 const ReactDOMServer = require('react-dom/server');
 const cheerio = require('cheerio');
 const fs = require('fs');
+const path = require('path');
+
 function contextClean(context) {
     delete context.route;
     delete context.entry;
@@ -28,12 +28,28 @@ function renderAsync(element) {
 
 }
 module.exports = async function render(scope, params) {
-    let { html_file, routes_file, request, route_index, remove_images, root_element, react_router_instance } = params;
+    let { html_file, routes_file, request, route_index, remove_images, root_element, react_router_instance, react_instance } = params;
+
+    if (react_router_instance) {
+        global['react-router-dom'] = require(react_router_instance);
+    }
+    if(react_instance){
+        global['react'] = require(react_instance);
+    }
+
+
+    const React =  (global['react'] || require('react'));
+    const { Fragment } = React;
+    const App = require('@react-renderer/app')['default'];
+    
+    const { getLazyCallbacks, resetLazyCallbacks } = require('@react-renderer/app');
+
     try {
 
         //load routes if need
         if (scope.routes_file !== routes_file) {
             scope.routes = [];
+            scope.directory = path.dirname(routes_file);
             require(routes_file)['default']({
                 entry(entry) {
                     scope.entry_point = entry;
@@ -43,6 +59,8 @@ module.exports = async function render(scope, params) {
                 }
             });
             scope.routes_file = routes_file;
+            scope.routes_lazy_components = getLazyCallbacks();
+            resetLazyCallbacks();
         }
         //load html if need
         if (scope.html_file !== html_file) {
@@ -122,15 +140,17 @@ module.exports = async function render(scope, params) {
         request.query = new URLSearchParams(request.search);
 
         const entry_state = { is_fetching: false, model: null };
-
+        let entry_component = null;
         if (scope.entry_point) {
-            const entry_fetch = scope.entry_point.fetch || (scope.entry_point.component || {}).fetch;
+            entry_component = scope.entry_point.component;
+            
+            const entry_fetch = scope.entry_point.fetch || (entry_component).fetch;
             if (typeof entry_fetch === 'function') {
                 request.entry = entry_fetch({ ...request, params: undefined, route: undefined }, reply);
             }
         }
-
-        const route_fetch = route.fetch || (route.component || {}).fetch;
+       
+        const route_fetch = route.fetch || route.component.fetch;
         let [entry_model, model] = await Promise.all([request.entry || null, typeof route_fetch === 'function' ? await route_fetch(request, reply) : null]);
         entry_state.model = entry_model;
 
@@ -142,14 +162,29 @@ module.exports = async function render(scope, params) {
         const $ = cheerio.load(scope.html);
 
 
-        if (react_router_instance) {
-            react_router_instance = require(react_router_instance);
-        }
-        const Helmet = (route || {}).helmet || ((route || {}).component || {}).helmet || (() => <Fragment />);
+        const Helmet = (route || {}).helmet || route.component.helmet || (() => <Fragment />);
 
-        const element = <App react_router_instance={react_router_instance} entry={scope.entry_point} entry_state={entry_state} context={context} request={request} model={model} routes={scope.routes} />;
+
+        //pre-execute lazy routes
+        const component_isLazy = scope.routes_lazy_components.find((lazy)=> lazy.isEqual(route.component));
+        if(component_isLazy){
+            await component_isLazy.callback();
+            route.component = component_isLazy.component;
+            if(route.component && route.component.default){
+                route.component = route.component.default;
+            }
+        }
+        //pre-execute lazy callbacks
+        await Promise.all(getLazyCallbacks().filter((lazy)=> !lazy.component && lazy.options.ssr !== false).map((lazy)=>{
+            return lazy.callback();
+        }));
+
+
+        const element = <App entry={scope.entry_point} entry_state={entry_state} context={context} request={request} model={model} routes={scope.routes} />;
         const helmet = <Helmet model={model} />
-        const [body, header_html] = await Promise.all([renderAsync(element), renderAsync(helmet)]);
+
+        let [body, header_html] =  await Promise.all([ renderAsync(element), renderAsync(helmet)]);
+
 
         const headElement = $('head');
         const container = $.load(`<head>${header_html}</head>`);
@@ -164,7 +199,7 @@ module.exports = async function render(scope, params) {
 
         headElement.find('title').text(title);
 
-        const preload_action = route.preload || (route.component || {}).preload;
+        const preload_action = route.preload || route.component.preload;
         if (typeof preload_action === 'function') {
             model = await preload_action(model);
         }
@@ -172,11 +207,11 @@ module.exports = async function render(scope, params) {
         let preload_entry = false;
 
         if (scope.entry_point) {
-            const entry_preload_action = scope.entry_point.preload || (scope.entry_point.component || {}).preload;
-            if(entry_preload_action !== false){
+            const entry_preload_action = scope.entry_point.preload || entry_component.preload;
+            if (entry_preload_action !== false) {
                 preload_entry = true;
 
-                if(!preload ){
+                if (!preload) {
                     preload = true;
                 }
             }
@@ -192,7 +227,7 @@ module.exports = async function render(scope, params) {
                 is_fetching: false,
                 model: preload_action !== false ? model : null,
                 is_server: false,
-                request:  preload_action !== false ? {
+                request: preload_action !== false ? {
                     url: request.url,
                     search: request.search
                 } : null,
@@ -280,9 +315,13 @@ module.exports = async function render(scope, params) {
             context.status = 200;
         }
         $('[data-ssr="ignore"]').remove();
+        resetLazyCallbacks();
+
         return { html: $.html(), context: contextClean(context) };
 
     } catch (error) {
+        resetLazyCallbacks();
+
         try {
             const context = {};
             const entry_state = {
@@ -292,10 +331,21 @@ module.exports = async function render(scope, params) {
             const model = { error: error + "" };
             const $ = cheerio.load(scope.html);
             request.query = new URLSearchParams(request.search);
-            const body = await renderAsync(<App entry_state={entry_state} context={context} error500={true} request={request} model={model} routes={scope.routes} />);
 
+    
+            //pre-execute lazy callbacks
+            await Promise.all(getLazyCallbacks().filter((lazy)=> !lazy.component && lazy.options.ssr !== false).map((lazy)=>{
+                return lazy.callback();
+            }));
+    
+    
+
+            const body = await renderAsync(<App entry_state={entry_state} context={context} error500={true} request={request} model={model} routes={scope.routes} />);
+        
             const Helmet = (context.route || {}).helmet || ((context.route || {}).component || {}).helmet || (() => <Fragment />);
             const header_html = await renderAsync(<Helmet model={model} />);
+            
+
 
             const headElement = $('head');
             const container = $.load(`<head>${header_html}</head>`);
@@ -332,9 +382,12 @@ module.exports = async function render(scope, params) {
 
             $('[data-ssr="ignore"]').remove();
             context.status = 500;
+            resetLazyCallbacks();
             return { html: $.html(), context: contextClean(context) };
 
         } catch (ex) { //try to show error 500 page if fail go to fallback
+            resetLazyCallbacks();
+
             return { html: '', context: { error: error + "", status: 500 } };
         }
     }

@@ -1,6 +1,6 @@
 {
   "name": "@react-renderer/router",
-  "version": "0.0.21",
+  "version": "0.0.22",
   "description": "",
   "main": "lib/index.js",
   "scripts": {
@@ -37,10 +37,12 @@
     "@babel/preset-react": "^7.10.4",
     "@babel/register": "^7.10.5",
     "@react-renderer/app": "latest",
+    "babel-plugin-syntax-dynamic-import": "^6.18.0",
     "cheerio": "^1.0.0-rc.3",
     "ignore-styles": "^5.0.1",
     "react": "^16.13.1",
     "react-dom": "^16.13.1",
+    "react-router-dom": "^5.2.0",
     "simplified-concurrence": "^1.0.7"
   },
   "devDependencies": {
