@@ -33,15 +33,15 @@ module.exports = async function render(scope, params) {
     if (react_router_instance) {
         global['react-router-dom'] = require(react_router_instance);
     }
-    if(react_instance){
+    if (react_instance) {
         global['react'] = require(react_instance);
     }
 
 
-    const React =  (global['react'] || require('react'));
+    const React = (global['react'] || require('react'));
     const { Fragment } = React;
     const App = require('@react-renderer/app')['default'];
-    
+
     const { getLazyCallbacks, resetLazyCallbacks } = require('@react-renderer/app');
 
     try {
@@ -143,13 +143,13 @@ module.exports = async function render(scope, params) {
         let entry_component = null;
         if (scope.entry_point) {
             entry_component = scope.entry_point.component;
-            
+
             const entry_fetch = scope.entry_point.fetch || (entry_component).fetch;
             if (typeof entry_fetch === 'function') {
                 request.entry = entry_fetch({ ...request, params: undefined, route: undefined }, reply);
             }
         }
-       
+
         const route_fetch = route.fetch || route.component.fetch;
         let [entry_model, model] = await Promise.all([request.entry || null, typeof route_fetch === 'function' ? await route_fetch(request, reply) : null]);
         entry_state.model = entry_model;
@@ -166,24 +166,30 @@ module.exports = async function render(scope, params) {
 
 
         //pre-execute lazy routes
-        const component_isLazy = scope.routes_lazy_components.find((lazy)=> lazy.isEqual(route.component));
-        if(component_isLazy){
+        const component_isLazy = scope.routes_lazy_components.find((lazy) => lazy.isEqual(route.component));
+        if (component_isLazy) {
             await component_isLazy.callback();
             route.component = component_isLazy.component;
-            if(route.component && route.component.default){
+            if (route.component && route.component.default) {
                 route.component = route.component.default;
             }
         }
-        //pre-execute lazy callbacks
-        await Promise.all(getLazyCallbacks().filter((lazy)=> !lazy.component && lazy.options.ssr !== false).map((lazy)=>{
-            return lazy.callback();
-        }));
-
+        //use while because lazy imports can add more lazy imports!
+        while (true) {
+            //pre-execute lazy callbacks
+            const lazyCallbacks = getLazyCallbacks().filter((lazy) => !lazy.component && lazy.options.ssr !== false);
+            if (lazyCallbacks.length <= 0) {
+                break;
+            } 
+            await Promise.all(lazyCallbacks.map((lazy) => {
+                return lazy.callback();
+            }));
+        }
 
         const element = <App entry={scope.entry_point} entry_state={entry_state} context={context} request={request} model={model} routes={scope.routes} />;
         const helmet = <Helmet model={model} />
 
-        let [body, header_html] =  await Promise.all([ renderAsync(element), renderAsync(helmet)]);
+        let [body, header_html] = await Promise.all([renderAsync(element), renderAsync(helmet)]);
 
 
         const headElement = $('head');
@@ -332,19 +338,30 @@ module.exports = async function render(scope, params) {
             const $ = cheerio.load(scope.html);
             request.query = new URLSearchParams(request.search);
 
-    
+
             //pre-execute lazy callbacks
-            await Promise.all(getLazyCallbacks().filter((lazy)=> !lazy.component && lazy.options.ssr !== false).map((lazy)=>{
+            await Promise.all(getLazyCallbacks().filter((lazy) => !lazy.component && lazy.options.ssr !== false).map((lazy) => {
                 return lazy.callback();
             }));
-    
-    
+
+
 
             const body = await renderAsync(<App entry_state={entry_state} context={context} error500={true} request={request} model={model} routes={scope.routes} />);
-        
+
             const Helmet = (context.route || {}).helmet || ((context.route || {}).component || {}).helmet || (() => <Fragment />);
+            //use while because lazy imports can add more lazy imports!
+            while (true) {
+                //pre-execute lazy callbacks
+                const lazyCallbacks = getLazyCallbacks().filter((lazy) => !lazy.component && lazy.options.ssr !== false);
+                if (lazyCallbacks.length <= 0) {
+                  break;
+                }
+                await Promise.all(lazyCallbacks.map((lazy) => {
+                    return lazy.callback();
+                }));
+            }
             const header_html = await renderAsync(<Helmet model={model} />);
-            
+
 
 
             const headElement = $('head');
