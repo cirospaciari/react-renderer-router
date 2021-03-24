@@ -42,7 +42,7 @@ module.exports = async function render(scope, params) {
     const { Fragment } = React;
     const App = require('@react-renderer/app')['default'];
 
-    const { getLazyCallbacks, resetLazyCallbacks } = require('@react-renderer/app');
+    const { getLazyCallbacks, resetLazyCallbacks, lazyCapture } = require('@react-renderer/app');
 
     try {
 
@@ -78,6 +78,9 @@ module.exports = async function render(scope, params) {
         //start new context
         const context = {};
         const reply = {
+            status(code){
+                context.status = code;
+            },
             redirect(url) {
                 context.url = url;
                 return '';
@@ -150,6 +153,13 @@ module.exports = async function render(scope, params) {
             }
         }
 
+        //pre-execute lazy route
+        const component_isLazy = scope.routes_lazy_components.find((lazy) => lazy.isEqual(route.component));
+        if (component_isLazy) {
+            await component_isLazy.callback();
+            route.component.fetch = component_isLazy.component.fetch || (component_isLazy.component.default && component_isLazy.component.default.fetch);
+            route.component.helmet = component_isLazy.component.helmet || (component_isLazy.component.default && component_isLazy.component.default.helmet);
+        }
         const route_fetch = route.fetch || route.component.fetch;
         let [entry_model, model] = await Promise.all([request.entry || null, typeof route_fetch === 'function' ? await route_fetch(request, reply) : null]);
         entry_state.model = entry_model;
@@ -160,20 +170,6 @@ module.exports = async function render(scope, params) {
             return { html: '', context: contextClean(context) };
         }
         const $ = cheerio.load(scope.html);
-
-
-        const Helmet = (route || {}).helmet || route.component.helmet || (() => <Fragment />);
-
-
-        //pre-execute lazy routes
-        const component_isLazy = scope.routes_lazy_components.find((lazy) => lazy.isEqual(route.component));
-        if (component_isLazy) {
-            await component_isLazy.callback();
-            route.component = component_isLazy.component;
-            if (route.component && route.component.default) {
-                route.component = route.component.default;
-            }
-        }
         //use while because lazy imports can add more lazy imports!
         while (true) {
             //pre-execute lazy callbacks
@@ -186,13 +182,23 @@ module.exports = async function render(scope, params) {
             }));
         }
 
+        const headElement = $('head');
+        lazyCapture((component)=>{
+            if(component.__css){
+                component.__css.forEach((file)=> {
+                    headElement.append(`<link href="${file}" rel="stylesheet">`);
+                });
+                
+            }
+        });
+        const Helmet = (route || {}).helmet || route.component.helmet || (() => <Fragment />);
+
+
         const element = <App entry={scope.entry_point} entry_state={entry_state} context={context} request={request} model={model} routes={scope.routes} />;
         const helmet = <Helmet model={model} />
 
         let [body, header_html] = await Promise.all([renderAsync(element), renderAsync(helmet)]);
 
-
-        const headElement = $('head');
         const container = $.load(`<head>${header_html}</head>`);
 
         const title = (container('title').text() || '').split('<!-- -->').join('');
@@ -229,6 +235,7 @@ module.exports = async function render(scope, params) {
 
         if (preload) {
             const script = $(`<script>`);
+            
             script.html(`(function(global){ global.__PRELOADED_STATE__ = ${JSON.stringify({
                 is_fetching: false,
                 model: preload_action !== false ? model : null,
@@ -361,8 +368,6 @@ module.exports = async function render(scope, params) {
                 }));
             }
             const header_html = await renderAsync(<Helmet model={model} />);
-
-
 
             const headElement = $('head');
             const container = $.load(`<head>${header_html}</head>`);
