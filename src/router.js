@@ -21,7 +21,7 @@ class Router {
 
         require(this.babel_config);
         require(this.routes_file)['default']({
-            entry: (entry)=> {
+            entry: (entry) => {
                 this.entry = entry;
             },
             add: (route) => {
@@ -29,7 +29,15 @@ class Router {
             }
         });
     }
-
+    getErrorPage(code) {
+        for (let i = 0; i < this.routes.length; i++) {
+            const route = this.routes[i];
+            if (route.error === code) {
+                return { route, route_index: i, params: {} };
+            }
+        }
+        return null;
+    }
     resolve(url) {
         const url_parts = (url || '').split('?')[0]
             .split('#')[0]
@@ -40,10 +48,11 @@ class Router {
         let error404 = null;
         for (let i = 0; i < this.routes.length; i++) {
             const route = this.routes[i];
-            if(route.error === 404){
+            if (route.error === 404) {
                 error404 = { route, route_index: i, params: {} };
             }
-            if(!route.path)
+
+            if (!route.path)
                 continue;
             const route_parts = route.path.split('/').filter(p => p);
 
@@ -70,7 +79,7 @@ class Router {
 
             return { params, route, route_index: i };
         }
-        if(error404)
+        if (error404)
             return error404;
         return { params: {}, route: null, route_index: -1 };
     }
@@ -155,11 +164,11 @@ class Router {
 
         switch (type) {
             case 'fastify':
-                const fastify_request_handler =  async (request, reply, route, route_index) => {
-                    let [ url, search ] = request.raw.url.split('?');
+                const fastify_request_handler = async (request, reply, route, route_index) => {
+                    let [url, search] = request.raw.url.split('?');
                     const protocol = request.connection.encrypted ? 'https:' : 'http:';
 
-                    if(search){
+                    if (search) {
                         search = `?${search}`;
                     }
                     const render_request = {
@@ -177,7 +186,7 @@ class Router {
                         cookies: request.cookies || {}
                     };
 
-                    
+
                     const rendered = await render(render_request, route_index);
                     //set cookies
                     if (rendered.context.cookies && reply.setCookie) {
@@ -196,7 +205,15 @@ class Router {
                     //404 page
                     if (rendered.context.status === 404) {
                         reply.type('text/html').code(404);
-                        return rendered.html || '404 Not Found';
+                        let htmlError = rendered.html || '404 Internal Error';
+                        const error = this.getErrorPage(404);
+                        if (error) {
+                            try {
+                                const rendered_error = await render(render_request, error.route_index);
+                                htmlError = rendered_error.html || htmlError;
+                            } catch (err) { }
+                        }
+                        return htmlError;
                     }
 
                     //500 page
@@ -205,7 +222,15 @@ class Router {
                         if (rendered.context.error) {
                             console.error(rendered.context.error);
                         }
-                        return rendered.html || '500 Internal Error';
+                        let htmlError = rendered.html || '500 Internal Error';
+                        const error = this.getErrorPage(500);
+                        if (error) {
+                            try {
+                                const rendered_error = await render(render_request, error.route_index);
+                                htmlError = rendered_error.html || htmlError;
+                            } catch (err) { }
+                        }
+                        return htmlError;
                     }
 
 
@@ -214,21 +239,21 @@ class Router {
                     return rendered.html;
                 };
                 apply_route = (route, route_index) => {
-                    if(route.error === 404){
-                        server.setNotFoundHandler(async (request, reply)=> await fastify_request_handler(request, reply, route, route_index));
+                    if (route.error === 404) {
+                        server.setNotFoundHandler(async (request, reply) => await fastify_request_handler(request, reply, route, route_index));
                     }
-                    if(!route.path)
+                    if (!route.path)
                         return;
 
-                    server.get(route.path, async (request, reply)=> await fastify_request_handler(request, reply, route, route_index));
+                    server.get(route.path, async (request, reply) => await fastify_request_handler(request, reply, route, route_index));
                 }
                 break;
             case 'express':
                 const express_request_handler = async (request, reply, route, route_index) => {
-                    let [ url, search ] = request.originalUrl.split('?');
+                    let [url, search] = request.originalUrl.split('?');
                     const protocol = `${request.protocol}:`;
 
-                    if(search){
+                    if (search) {
                         search = `?${search}`;
                     }
                     const render_request = {
@@ -271,7 +296,15 @@ class Router {
                     }
                     //404 page
                     if (rendered.context.status === 404) {
-                        return reply.type('text/html').status(404).send(rendered.html || '404 Not Found')
+                        let htmlError = rendered.html || '404 Internal Error';
+                        const error = this.getErrorPage(404);
+                        if (error) {
+                            try {
+                                const rendered_error = await render(render_request, error.route_index);
+                                htmlError = rendered_error.html || htmlError;
+                            } catch (err) { }
+                        }
+                        return reply.type('text/html').status(404).send(htmlError || '404 Not Found')
                     }
 
                     //500 page
@@ -279,7 +312,15 @@ class Router {
                         if (rendered.context.error) {
                             console.error(rendered.context.error);
                         }
-                        return reply.type('text/html').status(500).send(rendered.html || '500 Internal Error');
+                        let htmlError = rendered.html || '500 Internal Error';
+                        const error = this.getErrorPage(500);
+                        if (error) {
+                            try {
+                                const rendered_error = await render(render_request, error.route_index);
+                                htmlError = rendered_error.html || htmlError;
+                            } catch (err) { }
+                        }
+                        return reply.type('text/html').status(500).send(htmlError || '500 Internal Error');
                     }
 
 
@@ -288,15 +329,15 @@ class Router {
                 };
                 let error404 = null;
                 apply_route = (route, route_index) => {
-                    if(route.error === 404){
+                    if (route.error === 404) {
                         error404 = { route, route_index };
                     }
-                    if(!route.path)
+                    if (!route.path)
                         return;
-                    server.get(route.path, async (request, response)=> await express_request_handler(request, response, route, route_index));
+                    server.get(route.path, async (request, response) => await express_request_handler(request, response, route, route_index));
                 }
-                if(error404){ //register 404
-                    server.use(async (request, response)=> await express_request_handler(request, response, error404.route, error404.route_index));
+                if (error404) { //register 404
+                    server.use(async (request, response) => await express_request_handler(request, response, error404.route, error404.route_index));
                 }
                 break;
             case 'http':

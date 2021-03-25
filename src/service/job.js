@@ -2,7 +2,6 @@ const scope = { routes: [], routes_file: null, html_file: null, babel_config: nu
 const { default: register } = require('ignore-styles');
 const path = require('path');
 const fs = require('fs');
-const { setImmediate } = require('timers');
 const map_cache = {};
 module.exports = {
     async execute(params, reply) {

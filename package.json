@@ -1,6 +1,6 @@
 {
   "name": "@react-renderer/router",
-  "version": "0.0.24",
+  "version": "0.0.26",
   "description": "",
   "main": "lib/index.js",
   "scripts": {
@@ -30,6 +30,9 @@
       ],
       "@babel/preset-react"
     ]
+  },
+  "peerDependencies": {
+    "react": "^16.13.1"
   },
   "dependencies": {
     "@babel/core": "^7.10.5",
