@@ -183,7 +183,8 @@ class Router {
                         origin: `${protocol}//${request.headers.host}`,
                         is_server: true,
                         route: route.path,
-                        cookies: request.cookies || {}
+                        cookies: request.cookies || {},
+                        headers: request.headers
                     };
 
 
@@ -233,7 +234,6 @@ class Router {
                         return htmlError;
                     }
 
-
                     //send html
                     reply.type('text/html').code(rendered.context.status || 200);
                     return rendered.html;
@@ -268,7 +268,8 @@ class Router {
                         origin: `${protocol}//${request.headers.host}`,
                         is_server: true,
                         route: route.path || route.error,
-                        cookies: request.cookies || {}
+                        cookies: request.cookies || {},
+                        headers: request.headers
                     };
 
 
