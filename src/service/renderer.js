@@ -184,7 +184,7 @@ module.exports = async function render(scope, params) {
 
         const headElement = $('head');
         lazyCapture((component)=>{
-            if(component.__css){
+            if(component && component.__css){
                 component.__css.forEach((file)=> {
                     headElement.append(`<link href="${file}" rel="stylesheet">`);
                 });
@@ -371,7 +371,7 @@ module.exports = async function render(scope, params) {
     
             const headElement = $('head');
             lazyCapture((component)=>{
-                if(component.__css){
+                if(component && component.__css){
                     component.__css.forEach((file)=> {
                         headElement.append(`<link href="${file}" rel="stylesheet">`);
                     });
