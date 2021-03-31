@@ -173,7 +173,7 @@ module.exports = async function render(scope, params) {
         //use while because lazy imports can add more lazy imports!
         while (true) {
             //pre-execute lazy callbacks
-            const lazyCallbacks = getLazyCallbacks().filter((lazy) => !lazy.component && lazy.options.ssr !== false);
+            const lazyCallbacks = getLazyCallbacks().filter((lazy) => !lazy.component && (lazy.options || {}).ssr !== false);
             if (lazyCallbacks.length <= 0) {
                 break;
             } 
@@ -360,7 +360,7 @@ module.exports = async function render(scope, params) {
             //use while because lazy imports can add more lazy imports!
             while (true) {
                 //pre-execute lazy callbacks
-                const lazyCallbacks = getLazyCallbacks().filter((lazy) => !lazy.component && lazy.options.ssr !== false);
+                const lazyCallbacks = getLazyCallbacks().filter((lazy) => !lazy.component && (lazy.options || {}).ssr !== false);
                 if (lazyCallbacks.length <= 0) {
                     break;
                 } 
@@ -381,7 +381,7 @@ module.exports = async function render(scope, params) {
             const Helmet = (route || {}).helmet || route.component.helmet || (() => <Fragment />);
 
             //pre-execute lazy callbacks
-            await Promise.all(getLazyCallbacks().filter((lazy) => !lazy.component && lazy.options.ssr !== false).map((lazy) => {
+            await Promise.all(getLazyCallbacks().filter((lazy) => !lazy.component && (lazy.options || {}).ssr !== false).map((lazy) => {
                 return lazy.callback();
             }));
 
