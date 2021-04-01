@@ -81,7 +81,8 @@ module.exports = async function render(scope, params) {
             status(code){
                 context.status = code;
             },
-            redirect(url) {
+            redirect(url, status) {
+                context.status = status || 302;
                 context.url = url;
                 return '';
             },
@@ -166,7 +167,7 @@ module.exports = async function render(scope, params) {
 
 
         if (context.url) { //redirect
-            context.status = 302;
+            context.status = context.status != 302 && context.status != 301 ? 302 : context.status;
             return { html: '', context: contextClean(context) };
         }
         const $ = cheerio.load(scope.html);
