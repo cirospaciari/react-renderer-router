@@ -250,10 +250,6 @@ module.exports = async function render(scope, params) {
         }
         $(root_element).html(body);
 
-        if (remove_images) {
-            $(remove_images || 'img,svg').remove();//ignore images
-        }
-
         try {
             dom_operations.forEach((operation) => {
 
@@ -326,6 +322,10 @@ module.exports = async function render(scope, params) {
 
         if (!context.status) {
             context.status = 200;
+        }
+
+        if (remove_images) {
+            $(remove_images === true ? 'img,svg' : remove_images).remove();//ignore images
         }
         $('[data-ssr="ignore"]').remove();
         resetLazyCallbacks();
@@ -420,7 +420,7 @@ module.exports = async function render(scope, params) {
             $(root_element).html(body);
 
             if (remove_images) {
-                $(remove_images || 'img,svg').remove();//ignore images
+                $(remove_images === true ? 'img,svg' : remove_images).remove();//ignore images
             }
 
             $('[data-ssr="ignore"]').remove();
