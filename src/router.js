@@ -166,7 +166,7 @@ class Router {
             case 'fastify':
                 const fastify_request_handler = async (request, reply, route, route_index) => {
                     let [url, search] = request.raw.url.split('?');
-                    const protocol = request.connection.encrypted ? 'https:' : 'http:';
+                    const protocol = request.socket.encrypted ? 'https:' : 'http:';
 
                     if (search) {
                         search = `?${search}`;
